@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Modbus Dashboard</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                            950: '#082f49',
+                        },
+                        secondary: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            800: '#5b21b6',
+                            900: '#4c1d95',
+                            950: '#2e1065',
+                        },
+                    },
+                },
+            },
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Animação para valores alterados */
+        @keyframes highlight {
+            0% { background-color: transparent; }
+            30% { background-color: rgba(255, 255, 0, 0.5); }
+            100% { background-color: transparent; }
+        }
+        
+        .highlight-change {
+            animation: highlight 1.5s ease-in-out;
+        }
+        
+        /* Otimizações para tabela de dados */
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .data-table tbody {
+            display: block;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .data-table th, .data-table td {
+            border: none;
+            padding: 0.75rem 1rem;
+            text-align: left;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="bg-gradient-to-br from-primary-600 to-secondary-700 text-white w-64 flex-shrink-0 transition-all duration-300 ease-in-out transform">
+            <div class="flex items-center justify-between p-4 border-b border-white/10">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-microchip text-2xl text-yellow-300"></i>
+                    <span class="text-lg font-bold">IoT Dashboard</span>
+                </div>
+                <button id="sidebarToggle" class="lg:hidden text-white hover:text-gray-200 focus:outline-none">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <nav class="mt-6 px-4">
+                <a href="#" class="flex items-center px-4 py-3 mb-2 rounded-lg bg-white/10 text-white group transition-all" data-section="dashboard">
+                    <i class="fas fa-tachometer-alt mr-3"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 mb-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white group transition-all" data-section="devices">
+                    <i class="fas fa-cog mr-3"></i>
+                    <span>Dispositivos</span>
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 mb-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white group transition-all" data-section="registers">
+                    <i class="fas fa-database mr-3"></i>
+                    <span>Registradores</span>
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 mb-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white group transition-all" data-section="coils">
+                    <i class="fas fa-toggle-on mr-3"></i>
+                    <span>Coils</span>
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 mb-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white group transition-all" data-section="monitoring">
+                    <i class="fas fa-chart-line mr-3"></i>
+                    <span>Monitoramento</span>
+                </a>
+            </nav>
+            
+            <div class="mt-auto p-4 border-t border-white/10">
+                <div id="connectionStatus" class="flex items-center space-x-2 text-sm">
+                    <i class="fas fa-circle text-red-500"></i>
+                    <span>Desconectado</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <!-- Top Bar -->
+            <header class="bg-white shadow-sm z-10">
+                <div class="flex items-center justify-between px-6 py-4">
+                    <div class="flex items-center">
+                        <button id="menuToggle" class="mr-4 lg:hidden text-gray-500 hover:text-gray-700 focus:outline-none">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <h1 id="pageTitle" class="text-xl font-semibold text-gray-800">Dashboard IoT</h1>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button id="settingsBtn" class="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors" title="Configurações">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <button id="refreshBtn" class="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors" title="Atualizar">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="flex-1 overflow-auto p-6">
+                <!-- Dashboard Section -->
+                <section id="dashboard-section" class="active">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <!-- Status Cards -->
+                        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-primary-500 transition-all hover:shadow-md">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-primary-100 text-primary-600 mr-4">
+                                    <i class="fas fa-network-wired"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-medium text-gray-500">Conexão</h3>
+                                    <p id="connectionStatusText" class="text-lg font-semibold">Desconectado</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-primary-500 transition-all hover:shadow-md">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-primary-100 text-primary-600 mr-4">
+                                    <i class="fas fa-database"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-medium text-gray-500">Registradores</h3>
+                                    <p id="registersCount" class="text-lg font-semibold">0 lidos</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-primary-500 transition-all hover:shadow-md">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-primary-100 text-primary-600 mr-4">
+                                    <i class="fas fa-toggle-on"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-medium text-gray-500">Coils Ativos</h3>
+                                    <p id="activeCoils" class="text-lg font-semibold">0 de 8</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-primary-500 transition-all hover:shadow-md">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-primary-100 text-primary-600 mr-4">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-medium text-gray-500">Última Leitura</h3>
+                                    <p id="lastReadTime" class="text-lg font-semibold">--:--:--</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+                        <h2 class="text-lg font-semibold mb-4">Ações Rápidas</h2>
+                        <div class="flex flex-wrap gap-4">
+                            <button id="quickReadBtn" disabled class="flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-download mr-2"></i>
+                                <span>Leitura Rápida</span>
+                            </button>
+                            <button id="autoReadToggleBtn" disabled class="flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-sync-alt mr-2"></i>
+                                <span>Auto Leitura</span>
+                            </button>
+                            <button id="emergencyStopBtn" disabled class="flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-stop mr-2"></i>
+                                <span>Parada Emergência</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Coils Control -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+                        <h2 class="text-lg font-semibold mb-4">Controle de Coils</h2>
+                        <div id="coilsGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <!-- Coils will be generated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Live Data -->
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h2 class="text-lg font-semibold mb-4">Dados em Tempo Real</h2>
+                        <div id="liveDataContainer" class="overflow-x-auto">
+                            <div class="no-data flex flex-col items-center justify-center py-8 text-gray-400">
+                                <i class="fas fa-info-circle text-2xl mb-2"></i>
+                                <p>Conecte-se a um dispositivo para ver os dados</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Devices Section -->
+                <section id="devices-section" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-lg font-semibold">Configuração de Dispositivos</h2>
+                            <button id="addDeviceBtn" class="flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
+                                <i class="fas fa-plus mr-2"></i>
+                                Adicionar Dispositivo
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                            <div class="space-y-2">
+                                <label for="deviceIp" class="flex items-center text-sm font-medium text-gray-700">
+                                    <i class="fas fa-server mr-2 text-gray-400"></i>
+                                    IP do Dispositivo
+                                </label>
+                                <input type="text" id="deviceIp" value="192.168.2.55" placeholder="192.168.x.x" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label for="devicePort" class="flex items-center text-sm font-medium text-gray-700">
+                                    <i class="fas fa-plug mr-2 text-gray-400"></i>
+                                    Porta
+                                </label>
+                                <input type="number" id="devicePort" value="502" min="1" max="65535" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label for="deviceUnitId" class="flex items-center text-sm font-medium text-gray-700">
+                                    <i class="fas fa-hashtag mr-2 text-gray-400"></i>
+                                    Unit ID
+                                </label>
+                                <input type="number" id="deviceUnitId" value="1" min="1" max="255" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label for="deviceTimeout" class="flex items-center text-sm font-medium text-gray-700">
+                                    <i class="fas fa-clock mr-2 text-gray-400"></i>
+                                    Timeout (s)
+                                </label>
+                                <input type="number" id="deviceTimeout" value="10" min="1" max="60" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-4">
+                            <button id="connectBtn" class="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                                <i class="fas fa-plug mr-2"></i>
+                                Conectar
+                            </button>
+                            <button id="disconnectBtn" disabled class="flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-times mr-2"></i>
+                                Desconectar
+                            </button>
+                            <button id="testConnectionBtn" class="flex items-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+                                <i class="fas fa-vial mr-2"></i>
+                                Testar Conexão
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Registers Section -->
+                <section id="registers-section" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+                        <h2 class="text-lg font-semibold mb-6">Gerenciamento de Registradores</h2>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div class="space-y-6">
+                                <h3 class="text-md font-medium">Leitura de Registradores</h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="space-y-2">
+                                        <label for="readStartAddress" class="text-sm font-medium text-gray-700">Endereço Inicial</label>
+                                        <input type="number" id="readStartAddress" value="0" min="0" max="65535" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label for="readCount" class="text-sm font-medium text-gray-700">Quantidade</label>
+                                        <input type="number" id="readCount" value="10" min="1" max="125" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                    </div>
+                                </div>
+                                
+                                <button id="readBtn" disabled class="flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fas fa-download mr-2"></i>
+                                    Ler Registradores
+                                </button>
+                                
+                                <div class="pt-4 border-t border-gray-200">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="space-y-2">
+                                            <label for="autoReadInterval" class="text-sm font-medium text-gray-700">Intervalo (segundos)</label>
+                                            <input type="number" id="autoReadInterval" value="5" min="1" max="60" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                        </div>
+                                        
+                                        <div class="flex items-center space-x-3">
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="autoReadToggle" disabled class="sr-only peer">
+                                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                                                <span class="ml-3 text-sm font-medium text-gray-700">Leitura Automática</span>
+                                            </label>
+                                            
+                                            <div id="autoReadStatus" class="flex items-center space-x-2 text-sm text-gray-500">
+                                                <i class="fas fa-circle text-red-500"></i>
+                                                <span>Desativado</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-6">
+                                <h3 class="text-md font-medium">Escrita de Registrador</h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="space-y-2">
+                                        <label for="writeAddress" class="text-sm font-medium text-gray-700">Endereço</label>
+                                        <input type="number" id="writeAddress" value="0" min="0" max="65535" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label for="writeValue" class="text-sm font-medium text-gray-700">Valor</label>
+                                        <input type="number" id="writeValue" value="0" min="0" max="65535" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                    </div>
+                                </div>
+                                
+                                <button id="writeBtn" disabled class="flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fas fa-upload mr-2"></i>
+                                    Escrever
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <div id="registersData" class="min-h-[200px]">
+                            <div class="no-data flex flex-col items-center justify-center py-8 text-gray-400">
+                                <i class="fas fa-info-circle text-2xl mb-2"></i>
+                                <p>Nenhum registrador lido ainda</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Coils Section -->
+                <section id="coils-section" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-lg font-semibold">Controle de Coils</h2>
+                            <button id="refreshCoilsBtn" class="flex items-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+                                <i class="fas fa-sync-alt mr-2"></i>
+                                Atualizar
+                            </button>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <h3 class="text-md font-medium mb-4">Configuração</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div class="space-y-2">
+                                    <label for="coilStartAddress" class="text-sm font-medium text-gray-700">Endereço Inicial</label>
+                                    <input type="number" id="coilStartAddress" value="0" min="0" max="65535" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                </div>
+                                <div class="space-y-2">
+                                    <label for="coilCount" class="text-sm font-medium text-gray-700">Quantidade</label>
+                                    <input type="number" id="coilCount" value="8" min="1" max="32" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                </div>
+                                <div class="flex items-end">
+                                    <button id="loadCoilsBtn" disabled class="flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <i class="fas fa-download mr-2"></i>
+                                        Carregar Coils
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="coilsGridLarge" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            <!-- Coils will be generated dynamically -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Monitoring Section -->
+                <section id="monitoring-section" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-lg font-semibold">Monitoramento e Logs</h2>
+                            <button id="clearLogsBtn" class="flex items-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+                                <i class="fas fa-trash mr-2"></i>
+                                Limpar Logs
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div>
+                                <h3 class="text-md font-medium mb-3">Logs de Operação</h3>
+                                <div id="logsContent" class="bg-gray-50 rounded-lg p-4 h-80 overflow-y-auto font-mono text-sm">
+                                    <div class="no-logs flex flex-col items-center justify-center h-full text-gray-400">
+                                        <i class="fas fa-info-circle text-2xl mb-2"></i>
+                                        <p>Nenhum log disponível</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h3 class="text-md font-medium mb-3">Resultados</h3>
+                                <div id="resultsContainer" class="bg-gray-50 rounded-lg p-4 h-80 overflow-y-auto font-mono text-sm">
+                                    <div class="no-results flex flex-col items-center justify-center h-full text-gray-400">
+                                        <i class="fas fa-info-circle text-2xl mb-2"></i>
+                                        <p>Nenhuma operação realizada ainda</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                <h2 class="text-lg font-semibold">Configurações</h2>
+                <button id="closeSettingsModal" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <div class="flex border-b border-gray-200 mb-4">
+                    <button data-tab="general" class="px-4 py-2 border-b-2 border-primary-500 text-primary-600 font-medium">Geral</button>
+                    <button data-tab="connection" class="px-4 py-2 border-b-2 border-transparent hover:text-gray-700">Conexão</button>
+                    <button data-tab="interface" class="px-4 py-2 border-b-2 border-transparent hover:text-gray-700">Interface</button>
+                </div>
+                
+                <div id="general-tab" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tema</label>
+                        <select id="themeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                            <option value="light">Claro</option>
+                            <option value="dark">Escuro</option>
+                            <option value="auto">Automático</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Idioma</label>
+                        <select id="languageSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                            <option value="pt-BR">Português (Brasil)</option>
+                            <option value="en-US">English (US)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="connection-tab" class="hidden space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Timeout Padrão (segundos)</label>
+                        <input type="number" id="defaultTimeout" value="10" min="1" max="60" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tentativas de Reconexão</label>
+                        <input type="number" id="retryAttempts" value="3" min="1" max="10" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    </div>
+                </div>
+                
+                <div id="interface-tab" class="hidden space-y-4">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="showNotifications" checked class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500">
+                        <label for="showNotifications" class="ml-2 block text-sm text-gray-700">Mostrar Notificações</label>
+                    </div>
+                    
+                    <div class="flex items-center">
+                        <input type="checkbox" id="autoRefresh" checked class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500">
+                        <label for="autoRefresh" class="ml-2 block text-sm text-gray-700">Atualização Automática</label>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 p-6 border-t border-gray-200">
+                <button id="cancelSettings" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    Cancelar
+                </button>
+                <button id="saveSettings" class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
+                    Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl p-6 flex flex-col items-center">
+            <i class="fas fa-spinner fa-spin text-3xl text-primary-500 mb-3"></i>
+            <p class="text-gray-700">Processando...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
